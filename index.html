@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chennai Renegades - Room Allocation v2.0</title>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+    
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyAJxVigazivKQ_bNK0cm9co1uuwUMY1aTY",
+            authDomain: "chennai-renegades-spinner.firebaseapp.com",
+            databaseURL: "https://chennai-renegades-spinner-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "chennai-renegades-spinner",
+            storageBucket: "chennai-renegades-spinner.firebasestorage.app",
+            messagingSenderId: "230742813290",
+            appId: "1:230742813290:web:decaa7cfca370020ec3813",
+            measurementId: "G-9TMV3F7LZD"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+
+        const { useState, useEffect } = React;
+        const { createRoot } = ReactDOM;
+
+        function App() {
+            const [view, setView] = useState('rider');
+            const [password, setPassword] = useState('');
+            const [riders, setRiders] = useState([]);
+            const [currentRider, setCurrentRider] = useState('');
+            const [spinning, setSpinning] = useState(false);
+            const [currentIndex, setCurrentIndex] = useState(1);
+            const [lastResult, setLastResult] = useState(null);
+            const [rooms, setRooms] = useState({
+                single: { total: 3, allocated: [] },
+                double: { total: 7, allocated: [] },
+                five: { total: 2, allocated: [] }
+            });
+
+            useEffect(() => {
+                const ridersRef = database.ref('riders');
+                const roomsRef = database.ref('rooms');
+
+                ridersRef.on('value', (snapshot) => {
+                    const data = snapshot.val();
+                    if (data) {
+                        setRiders(data);
+                    } else {
+                        const defaultRiders = Array.from({ length: 27 }, (_, i) => 'Rider ' + (i + 1));
+                        setRiders(defaultRiders);
+                        ridersRef.set(defaultRiders);
+                    }
+                });
+
+                roomsRef.on('value', (snapshot) => {
+                    const data = snapshot.val();
+                    if (data) {
+                        setRooms(data);
+                    } else {
+                        const defaultRooms = {
+                            single: { total: 3, allocated: [] },
+                            double: { total: 7, allocated: [] },
+                            five: { total: 2, allocated: [] }
+                        };
+                        setRooms(defaultRooms);
+                        roomsRef.set(defaultRooms);
+                    }
+                });
+
+                return () => {
+                    ridersRef.off();
+                    roomsRef.off();
+                };
+            }, []);
+
+            const roomTypes = [
+                { name: 'Private Suite', type: 'single', color: 'from-purple-500 to-purple-700', icon: '🏠', capacity: 1 },
+                { name: 'Apartment', type: 'double', color: 'from-blue-500 to-blue-700', icon: '🏢', capacity: 2 },
+                { name: 'Villa', type: 'five', color: 'from-orange-500 to-orange-700', icon: '🏡', capacity: 5 }
+            ];
+
+            const spin = () => {
+                if (!currentRider || spinning) return;
+
+                const available = [];
+                if (rooms.single.allocated.length < rooms.single.total) available.push(0);
+                if (rooms.double.allocated.length < rooms.double.total * 2) available.push(1);
+                if (rooms.five.allocated.length < rooms.five.total * 5) available.push(2);
+
+                if (available.length === 0) return;
+
+                setSpinning(true);
+                setLastResult(null);
+
+                const target = available[Math.floor(Math.random() * available.length)];
+                let count = 0;
+                const spins = 15 + Math.floor(Math.random() * 10);
+
+                const interval = setInterval(() => {
+                    setCurrentIndex(p => (p + 1) % 3);
+                    count++;
+
+                    if (count >= spins) {
+                        clearInterval(interval);
+                        setCurrentIndex(target);
+
+                        setTimeout(() => {
+                            const selected = roomTypes[target];
+                            const newRiders = riders.filter(r => r !== currentRider);
+                            const newRooms = { ...rooms };
+                            newRooms[selected.type].allocated.push(currentRider);
+
+                            database.ref('riders').set(newRiders);
+                            database.ref('rooms').set(newRooms);
+
+                            setLastResult({ rider: currentRider, room: selected.name });
+                            setCurrentRider('');
+                            setSpinning(false);
+                        }, 500);
+                    }
+                }, 100);
+            };
+
+            const reset = () => {
+                const newRiders = Array.from({ length: 27 }, (_, i) => 'Rider ' + (i + 1));
+                const newRooms = { 
+                    single: { total: 3, allocated: [] }, 
+                    double: { total: 7, allocated: [] }, 
+                    five: { total: 2, allocated: [] } 
+                };
+                
+                database.ref('riders').set(newRiders);
+                database.ref('rooms').set(newRooms);
+                
+                setCurrentRider('');
+                setLastResult(null);
+            };
+
+            const updateRiderName = (index, newName) => {
+                if (newName.trim()) {
+                    const newRiders = [...riders];
+                    newRiders[index] = newName.trim();
+                    database.ref('riders').set(newRiders);
+                }
+            };
+
+            const handleLogin = () => {
+                if (password === 'Ananth,@2025#') {
+                    setView('admin');
+                    setPassword('');
+                } else {
+                    alert('Incorrect password');
+                    setPassword('');
+                }
+            };
+
+            const getVisible = () => {
+                const prev = (currentIndex - 1 + 3) % 3;
+                const next = (currentIndex + 1) % 3;
+                return [prev, currentIndex, next];
+            };
+
+            // LOGIN VIEW
+            if (view === 'login') {
+                return React.createElement('div', { className: 'min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 p-6 flex items-center justify-center' },
+                    React.createElement('div', { className: 'bg-white/10 backdrop-blur-lg p-8 rounded-2xl border border-white/20 max-w-md w-full' },
+                        React.createElement('h2', { className: 'text-2xl font-bold text-white mb-4 text-center' }, 'Admin Login'),
+                        React.createElement('input', { 
+                            type: 'password', 
+                            value: password, 
+                            onChange: (e) => setPassword(e.target.value), 
+                            onKeyPress: (e) => e.key === 'Enter' && handleLogin(), 
+                            placeholder: 'Enter Password', 
+                            autoFocus: true, 
+                            className: 'w-full px-4 py-2 bg-white/20 text-white rounded-lg mb-4 placeholder-white/50' 
+                        }),
+                        React.createElement('div', { className: 'flex gap-3' },
+                            React.createElement('button', { onClick: handleLogin, className: 'flex-1 px-6 py-2 bg-blue-500 hover:bg-blue-600 text-white font-bold rounded-lg' }, 'Login'),
+                            React.createElement('button', { onClick: () => { setView('rider'); setPassword(''); }, className: 'px-6 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded-lg' }, 'Cancel')
+                        )
+                    )
+                );
+            }
+
+            // ADMIN VIEW
+            if (view === 'admin') {
+                if (!riders || !Array.isArray(riders) || riders.length === 0) {
+                    return React.createElement('div', { className: 'min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 p-6 flex items-center justify-center' },
+                        React.createElement('div', { className: 'bg-white/10 backdrop-blur-lg p-8 rounded-2xl border border-white/20' },
+                            React.createElement('div', { className: 'text-white text-2xl mb-4' }, 'Loading admin panel...'),
+                            React.createElement('div', { className: 'flex gap-3' },
+                                React.createElement('button', { 
+                                    onClick: () => setView('rider'), 
+                                    className: 'px-6 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded-lg' 
+                                }, 'Back to Rider View')
+                            )
+                        )
+                    );
+                }
+                
+                return React.createElement('div', { className: 'min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 p-6' },
+                    React.createElement('div', { className: 'max-w-6xl mx-auto' },
+                        React.createElement('div', { className: 'flex justify-between items-center mb-8' },
+                            React.createElement('h1', { className: 'text-3xl font-bold text-white' }, 'Admin Panel'),
+                            React.createElement('button', { onClick: () => setView('rider'), className: 'px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg' }, 'Logout')
+                        ),
+                        React.createElement('div', { className: 'grid lg:grid-cols-2 gap-6' },
+                            React.createElement('div', { className: 'bg-white/10 rounded-2xl p-6 border border-white/20' },
+                                React.createElement('h3', { className: 'text-xl font-bold text-white mb-4' }, 'Manage Riders'),
+                                React.createElement('div', { className: 'grid grid-cols-3 gap-2 mb-4 max-h-96 overflow-y-auto' },
+                                    Array.isArray(riders) && riders.length > 0 ? riders.map((rider, i) =>
+                                        React.createElement('input', { 
+                                            key: i, 
+                                            type: 'text', 
+                                            value: rider || '', 
+                                            onChange: (e) => updateRiderName(i, e.target.value),
+                                            className: 'px-2 py-1 bg-blue-500/30 text-white text-sm rounded border border-blue-300/50' 
+                                        })
+                                    ) : React.createElement('div', { className: 'col-span-3 text-white text-center' }, 'Loading riders...')
+                                ),
+                                React.createElement('button', { onClick: reset, className: 'w-full px-6 py-3 bg-red-500 hover:bg-red-600 text-white font-bold rounded-lg' }, 'Reset Everything')
+                            ),
+                            React.createElement('div', { className: 'bg-white/10 rounded-2xl p-6 border border-white/20' },
+                                React.createElement('h3', { className: 'text-xl font-bold text-white mb-4' }, 'Room Allocation'),
+                                React.createElement('div', { className: 'space-y-3' },
+                                    React.createElement('div', { className: 'bg-purple-500/20 p-3 rounded-lg border border-purple-400/30' },
+                                        React.createElement('div', { className: 'flex justify-between text-white mb-2' },
+                                            React.createElement('span', { className: 'font-semibold' }, '🏠 Private Suite'),
+                                            React.createElement('span', null, rooms.single.allocated.length + '/' + rooms.single.total)
+                                        ),
+                                        React.createElement('div', { className: 'text-xs text-purple-100' }, rooms.single.allocated.join(', ') || 'None yet')
+                                    ),
+                                    React.createElement('div', { className: 'bg-blue-500/20 p-3 rounded-lg border border-blue-400/30' },
+                                        React.createElement('div', { className: 'flex justify-between text-white mb-2' },
+                                            React.createElement('span', { className: 'font-semibold' }, '🏢 Apartment'),
+                                            React.createElement('span', null, rooms.double.allocated.length + '/' + (rooms.double.total * 2))
+                                        ),
+                                        React.createElement('div', { className: 'text-xs text-blue-100' }, rooms.double.allocated.join(', ') || 'None yet')
+                                    ),
+                                    React.createElement('div', { className: 'bg-orange-500/20 p-3 rounded-lg border border-orange-400/30' },
+                                        React.createElement('div', { className: 'flex justify-between text-white mb-2' },
+                                            React.createElement('span', { className: 'font-semibold' }, '🏡 Villa'),
+                                            React.createElement('span', null, rooms.five.allocated.length + '/' + (rooms.five.total * 5))
+                                        ),
+                                        React.createElement('div', { className: 'text-xs text-orange-100' }, rooms.five.allocated.join(', ') || 'None yet')
+                                    )
+                                )
+                            )
+                        )
+                    )
+                );
+            }
+
+            // RIDER VIEW (DEFAULT)
+            return React.createElement('div', { className: 'min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 p-6' },
+                React.createElement('div', { className: 'max-w-6xl mx-auto' },
+                    React.createElement('div', { className: 'text-center mb-8' },
+                        React.createElement('div', { className: 'flex items-center justify-center gap-4 mb-4' },
+                            React.createElement('img', { src: 'https://chennairenegades.com/wp-content/uploads/2025/11/logo.jpg', alt: 'Chennai Renegades', className: 'w-24 h-24 rounded-full border-4 border-yellow-400 shadow-lg' }),
+                            React.createElement('div', null,
+                                React.createElement('h1', { className: 'text-4xl font-bold text-yellow-400 mb-1' }, 'Chennai Renegades'),
+                                React.createElement('p', { className: 'text-2xl font-bold text-white' }, 'Hello Boys, Let\'s go for a spin!!!!')
+                            )
+                        )
+                    ),
+                    React.createElement('div', { className: 'grid lg:grid-cols-2 gap-6' },
+                        React.createElement('div', { className: 'bg-white/10 backdrop-blur-lg rounded-2xl p-6 shadow-2xl border border-white/20' },
+                            React.createElement('div', { className: 'relative mb-6' },
+                                React.createElement('div', { className: 'flex items-center justify-center gap-4 py-8' },
+                                    getVisible().map((idx, pos) => {
+                                        const room = roomTypes[idx];
+                                        const isCenter = pos === 1;
+                                        return React.createElement('div', { key: idx, className: 'transition-all duration-300 ' + (isCenter ? 'scale-110 opacity-100' : 'scale-75 opacity-40') },
+                                            React.createElement('div', { className: 'bg-gradient-to-br ' + room.color + ' rounded-2xl p-8 shadow-2xl border-4 border-white min-w-[200px]' },
+                                                React.createElement('div', { className: 'text-center' },
+                                                    React.createElement('div', { className: 'text-7xl mb-4' }, room.icon),
+                                                    React.createElement('h3', { className: 'text-2xl font-bold text-white mb-2' }, room.name),
+                                                    React.createElement('div', { className: 'text-sm text-white/80' }, room.capacity + (room.capacity > 1 ? ' Persons' : ' Person'))
+                                                )
+                                            )
+                                        );
+                                    })
+                                ),
+                                React.createElement('div', { className: 'absolute top-0 left-1/2 -translate-x-1/2 -translate-y-4' },
+                                    React.createElement('div', { className: 'w-0 h-0 border-l-[20px] border-r-[20px] border-t-[30px] border-l-transparent border-r-transparent border-t-yellow-400' })
+                                )
+                            ),
+                            currentRider && React.createElement('div', { className: 'text-center mb-4' },
+                                React.createElement('p', { className: 'text-xl font-bold text-white' }, 'Now spinning for:'),
+                                React.createElement('p', { className: 'text-3xl font-bold text-yellow-300' }, currentRider)
+                            ),
+                            !currentRider && !lastResult && riders.length > 0 && React.createElement('div', { className: 'text-center mb-4' },
+                                React.createElement('p', { className: 'text-xl font-bold text-blue-200' }, 'Select a rider to spin')
+                            ),
+                            lastResult && !spinning && React.createElement('div', { className: 'text-center mb-4 bg-green-500/20 border-2 border-green-400 rounded-lg p-4' },
+                                React.createElement('p', { className: 'text-2xl font-bold text-green-300' }, '🎉 Congratulations! 🎉'),
+                                React.createElement('p', { className: 'text-xl text-white mt-2' },
+                                    React.createElement('span', { className: 'font-bold text-yellow-300' }, lastResult.rider)
+                                ),
+                                React.createElement('p', { className: 'text-lg text-white' }, 'You got a'),
+                                React.createElement('p', { className: 'text-3xl font-bold text-green-300' }, lastResult.room)
+                            ),
+                            React.createElement('div', { className: 'flex gap-3 justify-center' },
+                                React.createElement('button', { onClick: spin, disabled: spinning || !currentRider, className: 'px-8 py-3 bg-gradient-to-r from-blue-500 to-purple-600 text-white font-bold rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:shadow-xl transform hover:scale-105 transition-all' },
+                                    spinning ? 'Spinning...' : 'SPIN!'
+                                )
+                            ),
+                            React.createElement('div', { className: 'mt-6 text-white text-center' },
+                                React.createElement('p', { className: 'text-sm' }, 'Riders remaining: ',
+                                    React.createElement('span', { className: 'font-bold text-yellow-300' }, riders.length)
+                                )
+                            )
+                        ),
+                        React.createElement('div', { className: 'bg-white/10 backdrop-blur-lg rounded-2xl p-6 shadow-2xl border border-white/20' },
+                            React.createElement('h3', { className: 'text-xl font-bold text-white mb-4' }, 'Select Rider (' + riders.length + ' remaining)'),
+                            React.createElement('div', { className: 'grid grid-cols-3 gap-2 max-h-96 overflow-y-auto' },
+                                Array.isArray(riders) && riders.length > 0 ? riders.map((rider, i) =>
+                                    React.createElement('button', {
+                                        key: i,
+                                        onClick: () => setCurrentRider(rider),
+                                        className: 'px-2 py-2 text-sm rounded font-medium transition-all ' + (currentRider === rider ? 'bg-yellow-400 text-black ring-2 ring-yellow-300 shadow-lg scale-105' : 'bg-blue-500/30 text-white hover:bg-blue-500/50 border border-blue-300/50')
+                                    }, rider)
+                                ) : React.createElement('div', { className: 'col-span-3 text-white text-center' }, 'Loading riders...')
+                            )
+                        )
+                    ),
+                    React.createElement('div', { className: 'fixed bottom-4 right-4' },
+                        React.createElement('button', { 
+                            onClick: () => setView('login'), 
+                            className: 'p-3 bg-gray-700/50 hover:bg-gray-600/50 text-white rounded-full shadow-lg' 
+                        }, '🔒')
+                    )
+                )
+            );
+        }
+
+        createRoot(document.getElementById('root')).render(React.createElement(App));
+    </script>
+</body>
+</html>
